@@ -5,12 +5,20 @@ pub mod utils;
 use dotenv::dotenv;
 use kong_data::ScaperBot;
 use log::error;
-use std::time::Duration;
+use std::{env, net::TcpListener, time::Duration};
 use tokio::{task, time};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
+
+    let port = if let Ok(p) = env::var("PORT") {
+        format!("127.0.0.1:{}", p)
+    } else {
+        "127.0.0.1:5000".to_string()
+    };
+    let _ = TcpListener::bind(port.as_str())?;
+
     let mut scraper = ScaperBot::init().await?;
     let updates = task::spawn(async move {
         let mut interval = time::interval(Duration::new(300, 0));
