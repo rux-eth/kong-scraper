@@ -13,9 +13,9 @@ async fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
     let port = if let Ok(p) = env::var("PORT") {
-        format!("127.0.0.1:{}", p)
+        format!("0.0.0.0:{}", p)
     } else {
-        "127.0.0.1:5000".to_string()
+        "0.0.0.0:5000".to_string()
     };
     let _ = TcpListener::bind(port.as_str())?;
 
