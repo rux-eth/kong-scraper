@@ -22,7 +22,7 @@ pub struct EventsResponse {
     pub previous: Option<String>,
     pub asset_events: Vec<Event>,
 }
-
+#[derive(Debug)]
 pub struct EventsRequest {
     asset_contract_address: String,
     event_type: Option<String>,

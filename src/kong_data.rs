@@ -6,7 +6,9 @@ use crate::{
     },
     utils::*,
 };
+use anyhow::anyhow;
 use hex_literal;
+use mongodb::{options::ClientOptions, Client, Collection};
 use progress_bar::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -82,13 +84,37 @@ pub struct ScaperBot {
     cached: Cached,
     web3: web3::Web3<Batch<Http>>,
     os_client: OpenseaClient,
+    mongo_coll: Collection<MongoDoc<'static>>,
 }
+#[derive(Serialize, Debug, Clone)]
 
+struct MongoDoc<'a> {
+    token_id: i16,
+    name: &'a String,
+    bio: &'a Option<String>,
+    current_price: Option<f64>,
+    cumulative: i16,
+    shooting: i8,
+    finish: i8,
+    defense: i8,
+    vision: i8,
+    background: &'a String,
+    fur: &'a String,
+    mouth: &'a String,
+    eyes: &'a String,
+    clothes: &'a Option<String>,
+    head: &'a Option<String>,
+    head_accessory: &'a Option<String>,
+    jewellery: &'a Option<String>,
+}
 impl ScaperBot {
-    pub fn init() -> anyhow::Result<Self> {
+    pub async fn init() -> anyhow::Result<Self> {
         let node_url = env::var("INFURA_MAINNET")?;
-        let os_key = env::var("INFURA_MAINNET")?;
-
+        let os_key = env::var("OS_KEY")?;
+        let mongo_url = env::var("MONGO_URL")?;
+        let client = Client::with_options(ClientOptions::parse(mongo_url).await?)?;
+        let db = client.database("kong-scraper");
+        let collection = db.collection::<MongoDoc>("formatted");
         let c: Cached = if let Ok(cac) = restore_cache(String::from("src/utils/cache.json")) {
             cac
         } else {
@@ -98,11 +124,79 @@ impl ScaperBot {
             cached: c,
             web3: get_web3(node_url.as_str()).expect("couldnt get web3. check node url"),
             os_client: OpenseaClient::new(os_key.as_str()),
+            mongo_coll: collection,
         })
     }
 
     pub fn get_all(&self) -> &Cached {
         &self.cached
+    }
+    pub async fn upload_to_db<'a>(&'a self) -> anyhow::Result<()> {
+        let format_data_to_doc = |data: &'a KongData, id: &i16| MongoDoc {
+            token_id: *id,
+            name: &data.name,
+            bio: &data.bio,
+            current_price: match data.current_sales.len() {
+                0 => None,
+                1 => Some(data.current_sales[0].price_eth),
+                _ => {
+                    anyhow!("unexpected sales length for {}", id);
+                    None
+                }
+            },
+            cumulative: data.traits.cumulative,
+            shooting: data.traits.shooting,
+            finish: data.traits.finish,
+            defense: data.traits.defense,
+            vision: data.traits.vision,
+            background: &data.traits.background,
+            fur: &data.traits.fur,
+            mouth: &data.traits.mouth,
+            eyes: &data.traits.eyes,
+            clothes: &data.traits.clothes,
+            head: &data.traits.head,
+            head_accessory: &data.traits.head_accessory,
+            jewellery: &data.traits.jewellery,
+        };
+
+        self.mongo_coll.drop(None).await?;
+        let mut to_upload: Vec<MongoDoc> = Vec::new();
+        for i in 0..10_000 {
+            let curr_id: &i16 = &i16::try_from(i).ok().unwrap();
+            to_upload.push(format_data_to_doc(
+                self.cached.data.get(curr_id).unwrap(),
+                curr_id,
+            ));
+        }
+        self.mongo_coll.insert_many(&to_upload, None).await?;
+        let mut out_vec: Vec<String> = vec!["token_id,name,bio,current_price(eth),cumulative,shooting,finish,defense,vision,background,fur,mouth,eyes,clothes,head,head_accessory,jewellery".to_string()];
+        for elem in to_upload {
+            out_vec.push(format!(
+                "{},,,,{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                elem.token_id,
+                elem.cumulative,
+                elem.shooting,
+                elem.finish,
+                elem.defense,
+                elem.vision,
+                elem.background,
+                elem.fur,
+                elem.mouth,
+                elem.eyes,
+                if let Some(e) = elem.clothes { e } else { "" },
+                if let Some(e) = elem.head { e } else { "" },
+                if let Some(e) = elem.head_accessory {
+                    e
+                } else {
+                    ""
+                },
+                if let Some(e) = elem.jewellery { e } else { "" }
+            ))
+        }
+        let out_str = out_vec.join("\n");
+        std::fs::write("src/static_data.csv", out_str)?;
+
+        Ok(())
     }
     pub async fn update_all(&mut self) -> anyhow::Result<()> {
         self.update_infos().await?;
@@ -324,3 +418,4 @@ impl ScaperBot {
         Ok(())
     }
 }
+// https://us-east-1.aws.data.mongodb-api.com/app/google-blnmi/endpoint/kongdata

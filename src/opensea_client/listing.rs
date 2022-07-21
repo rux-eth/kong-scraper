@@ -3,6 +3,7 @@ use crate::{
     opensea_client::Request,
     utils::wei_to_eth,
 };
+use core::fmt::Debug;
 use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize, Clone)]
@@ -19,6 +20,7 @@ pub struct SeaportListing {
 pub struct ListingsResponse {
     pub seaport_listings: Vec<SeaportListing>,
 }
+#[derive(Debug)]
 pub struct ListingsRequest {
     pub asset_contract_address: String,
     pub token_id: i16,
