@@ -138,11 +138,7 @@ impl ScaperBot {
             bio: &data.bio,
             current_price: match data.current_sales.len() {
                 0 => None,
-                1 => Some(data.current_sales[0].price_eth),
-                _ => {
-                    anyhow!("unexpected sales length for {}", id);
-                    None
-                }
+                _ => Some(data.current_sales[0].price_eth),
             },
             cumulative: data.traits.cumulative,
             shooting: data.traits.shooting,
