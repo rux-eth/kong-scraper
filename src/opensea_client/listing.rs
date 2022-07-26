@@ -6,19 +6,22 @@ use crate::{
 use core::fmt::Debug;
 use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
-#[derive(Deserialize, Serialize, Clone)]
+use serde_aux::prelude::*;
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct SeaportListing {
     pub created_date: String,
-    pub closing_date: String,
+    pub closing_date: Option<String>,
     pub listing_time: u64,
     pub expiration_time: Option<u64>,
     pub current_price: String,
+    #[serde(deserialize_with = "deserialize_string_from_number")]
     pub side: String,
-    pub order_type: String,
+    pub order_type: Option<String>,
 }
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ListingsResponse {
     pub seaport_listings: Vec<SeaportListing>,
+    pub listings: Vec<SeaportListing>,
 }
 #[derive(Debug)]
 pub struct ListingsRequest {
@@ -35,21 +38,48 @@ platform: Marketplace,
 link: String, */
 impl ListingsResponse {
     pub fn format_listing(&self) -> Vec<Sale> {
-        self.seaport_listings
+        let mut list: Vec<Sale> = self
+            .listings
             .clone()
             .iter()
             .map(|elem| Sale {
                 created_timestamp: elem.listing_time,
                 expiration_timestamp: elem.expiration_time,
-                sale_type: match elem.order_type.as_str() {
-                    "basic" => SaleType::BuyNow,
-                    _ => SaleType::Auction,
+                sale_type: if let Some(typ) = &elem.order_type {
+                    match typ.as_str() {
+                        "basic" => SaleType::BuyNow,
+                        _ => SaleType::Auction,
+                    }
+                } else {
+                    SaleType::BuyNow
                 },
                 price_eth: wei_to_eth(elem.current_price.clone()),
                 price_usd: None,
                 platform: Marketplace::OpenSea,
             })
-            .collect()
+            .collect();
+        let mut sp_list = self
+            .seaport_listings
+            .clone()
+            .iter()
+            .map(|elem| Sale {
+                created_timestamp: elem.listing_time,
+                expiration_timestamp: elem.expiration_time,
+                sale_type: if let Some(typ) = &elem.order_type {
+                    match typ.as_str() {
+                        "basic" => SaleType::BuyNow,
+                        _ => SaleType::Auction,
+                    }
+                } else {
+                    SaleType::BuyNow
+                },
+                price_eth: wei_to_eth(elem.current_price.clone()),
+                price_usd: None,
+                platform: Marketplace::OpenSea,
+            })
+            .collect();
+        list.append(&mut sp_list);
+        list
     }
 }
 impl ListingsRequest {

@@ -165,7 +165,7 @@ impl ScaperBot {
             ));
         }
         self.mongo_coll.insert_many(&to_upload, None).await?;
-        let mut out_vec: Vec<String> = vec!["token_id,name,bio,current_price(eth),cumulative,shooting,finish,defense,vision,background,fur,mouth,eyes,clothes,head,head_accessory,jewellery".to_string()];
+        /* let mut out_vec: Vec<String> = vec!["token_id,name,bio,current_price(eth),cumulative,shooting,finish,defense,vision,background,fur,mouth,eyes,clothes,head,head_accessory,jewellery".to_string()];
         for elem in to_upload {
             out_vec.push(format!(
                 "{},,,,{},{},{},{},{},{},{},{},{},{},{},{},{}",
@@ -190,7 +190,7 @@ impl ScaperBot {
             ))
         }
         let out_str = out_vec.join("\n");
-        std::fs::write("src/static_data.csv", out_str)?;
+        std::fs::write("src/static_data.csv", out_str)?; */
 
         Ok(())
     }
@@ -308,7 +308,34 @@ impl ScaperBot {
                 break;
             }
         }
+        event_req.set_cursor(None);
+        event_req.set_event_type("cancelled".to_string());
+        calls = 0;
+        loop {
+            let res: EventsResponse = self
+                .os_client
+                .request::<EventsRequest, EventsResponse>(&event_req)
+                .await?;
+            calls += 1;
+            if calls >= 150 {
+                break;
+            }
+            for event in &res.asset_events {
+                if let Some(ass) = &event.asset {
+                    ids.push(ass.token_id);
+                }
+            }
+            if res.asset_events.len() < 1 {
+                break;
+            }
+            if let Some(cur) = res.next {
+                event_req.set_cursor(Some(cur));
+            } else {
+                break;
+            }
+        }
         ids.dedup();
+
         Ok(ids)
     }
     async fn _update_names(&mut self, token_ids: Option<Vec<i16>>) -> anyhow::Result<()> {

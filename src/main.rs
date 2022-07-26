@@ -20,16 +20,16 @@ async fn main() -> anyhow::Result<()> {
             println!("Updating Collection");
             match scraper.update_all().await {
                 Ok(_) => println!("Successfully updated prices"),
-                Err(err) => error!("Error updating prices.\nError: {}", err),
+                Err(err) => println!("Error updating prices.\nError: {}", err),
             };
             println!("Updating DB");
             match scraper.upload_to_db().await {
                 Ok(_) => println!("Successfully uploaded to DB"),
-                Err(err) => error!("Error uploading to DB.\nError: {}", err),
+                Err(err) => println!("Error uploading to DB.\nError: {}", err),
             };
         }
     });
-    updates.await;
+    updates.await?;
 
     Ok(())
 }

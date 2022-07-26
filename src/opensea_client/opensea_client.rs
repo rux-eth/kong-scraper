@@ -15,14 +15,14 @@ impl OpenseaClient {
         OpenseaClient { headers: h }
     }
 
-    pub async fn request<T: Request + Sync + Debug, U: DeserializeOwned>(
+    pub async fn request<T: Request + Sync + Debug, U: DeserializeOwned + Debug>(
         &self,
         req: &T,
     ) -> anyhow::Result<U> {
-        self.try_request::<T, U>(req, None).await
+        Ok(self.try_request::<T, U>(req, None).await?)
     }
     #[async_recursion]
-    async fn try_request<T: Request + Sync + Debug, U: DeserializeOwned>(
+    async fn try_request<T: Request + Sync + Debug, U: DeserializeOwned + Debug>(
         &self,
         req: &T,
         nonce: Option<u8>,
@@ -30,11 +30,14 @@ impl OpenseaClient {
         let n: u8 = if let Some(non) = nonce { non } else { 1_u8 };
         let r_built: RequestBuilder = req.build_request().headers(self.headers.clone());
         if let Ok(res) = r_built.send().await {
-            sleep(Duration::new(0, 255_000_000));
+            sleep(Duration::new(0, 300_000_000));
             match res.status().into() {
-                200 => Ok(res.json::<U>().await?),
+                200 => {
+                    let stuff: U = res.json().await?;
+                    Ok(stuff)
+                }
                 429 => {
-                    if n >= 5 {
+                    if n >= 20 {
                         Err(anyhow!("Too many tries for request"))
                     } else {
                         let wait = n * 3;
