@@ -4,7 +4,6 @@ pub mod utils;
 
 use dotenv::dotenv;
 use kong_data::ScaperBot;
-use log::error;
 use std::time::Duration;
 use tokio::{task, time};
 

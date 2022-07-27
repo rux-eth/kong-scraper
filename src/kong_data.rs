@@ -6,7 +6,6 @@ use crate::{
     },
     utils::*,
 };
-use anyhow::anyhow;
 use hex_literal;
 use mongodb::{options::ClientOptions, Client, Collection};
 use progress_bar::*;
