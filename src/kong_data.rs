@@ -111,7 +111,12 @@ impl ScaperBot {
     pub async fn init() -> anyhow::Result<Self> {
         let node_url = env::var("INFURA_MAINNET")?;
         let os_key = env::var("OS_KEY")?;
-        let mongo_url = env::var("MONGO_URL")?;
+        let mongo_pw = env::var("MONGO_PW")?;
+        let mongo_un = env::var("MONGO_UN")?;
+        let mongo_url = format!(
+            "mongodb+srv://{}:{}@cluster0.bigvo.mongodb.net/?retryWrites=true&w=majority",
+            mongo_un, mongo_pw
+        );
         let client = Client::with_options(ClientOptions::parse(mongo_url).await?)?;
         let db = client.database("kong-scraper");
         let collection = db.collection::<MongoDoc>("formatted");
