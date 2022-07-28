@@ -110,12 +110,7 @@ impl ScaperBot {
     pub async fn init() -> anyhow::Result<Self> {
         let node_url = env::var("INFURA_MAINNET")?;
         let os_key = env::var("OS_KEY")?;
-        let mongo_pw = env::var("MONGO_PW")?;
-        let mongo_un = env::var("MONGO_UN")?;
-        let mongo_url = format!(
-            "mongodb+srv://{}:{}@cluster0.bigvo.mongodb.net/?retryWrites=true&w=majority",
-            mongo_un, mongo_pw
-        );
+        let mongo_url = env::var("MONGO_URL")?;
         let client = Client::with_options(ClientOptions::parse(mongo_url).await?)?;
         let db = client.database("kong-scraper");
         let collection = db.collection::<MongoDoc>("formatted");
@@ -135,7 +130,29 @@ impl ScaperBot {
     pub fn get_all(&self) -> &Cached {
         &self.cached
     }
+
+    pub async fn update_all(&mut self) -> anyhow::Result<()> {
+        self.update_infos().await?;
+        self.update_prices().await?;
+        Ok(())
+    }
+    pub async fn update_infos(&mut self) -> anyhow::Result<()> {
+        let current_ts = get_current_ts();
+        self._update_names(None).await?;
+        self._update_bios(None).await?;
+        self.cached.prev_names_ts = current_ts;
+        self._cache_updates()?;
+        Ok(())
+    }
+    pub async fn update_prices(&mut self) -> anyhow::Result<()> {
+        let current_ts = get_current_ts();
+        self._update_prices().await?;
+        self.cached.prev_sales_ts = current_ts;
+        self._cache_updates()?;
+        Ok(())
+    }
     pub async fn upload_to_db<'a>(&'a self) -> anyhow::Result<()> {
+        println!("Updating DB");
         let format_data_to_doc = |data: &'a KongData, id: &i16| MongoDoc {
             token_id: *id,
             name: &data.name,
@@ -196,26 +213,6 @@ impl ScaperBot {
         let out_str = out_vec.join("\n");
         std::fs::write("src/static_data.csv", out_str)?; */
 
-        Ok(())
-    }
-    pub async fn update_all(&mut self) -> anyhow::Result<()> {
-        self.update_infos().await?;
-        self.update_prices().await?;
-        Ok(())
-    }
-    pub async fn update_infos(&mut self) -> anyhow::Result<()> {
-        let current_ts = get_current_ts();
-        self._update_names(None).await?;
-        self._update_bios(None).await?;
-        self.cached.prev_names_ts = current_ts;
-        self._cache_updates()?;
-        Ok(())
-    }
-    pub async fn update_prices(&mut self) -> anyhow::Result<()> {
-        let current_ts = get_current_ts();
-        self._update_prices().await?;
-        self.cached.prev_sales_ts = current_ts;
-        self._cache_updates()?;
         Ok(())
     }
     async fn _update_prices(&mut self) -> anyhow::Result<()> {
@@ -439,6 +436,7 @@ impl ScaperBot {
 
         Ok(())
     }
+
     fn _cache_updates(&self) -> anyhow::Result<()> {
         let writer = BufWriter::new(File::create("src/utils/cache.json")?);
         serde_json::to_writer_pretty(writer, &self.cached)?;
